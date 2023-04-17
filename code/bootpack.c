@@ -5,8 +5,10 @@ int io_load_eflags(void);
 void io_store_eflags(int eflags);
 
 void init_palette(void);
-void set_palette(int start, int end, unsigned char *rgb);
-void boxfill8(unsigned char *vram, int xsize, unsigned char c, int x0, int y0, int x1, int y1);
+void set_palette(int start, int end, unsigned char* rgb);
+void boxfill8(unsigned char* vram, int xsize, unsigned char c, int x0, int y0, int x1, int y1);
+void init_screen(char* vram, int x, int y);
+void putfont8(char* vram, int xsize, int x, int y, char c, char* font);
 
 #define COL8_000000		0
 #define COL8_FF0000		1
@@ -25,36 +27,23 @@ void boxfill8(unsigned char *vram, int xsize, unsigned char c, int x0, int y0, i
 #define COL8_008484		14
 #define COL8_848484		15
 
+struct BOOTINFO {
+	char cyls, leds, vmode, reserve;
+	short scrnx, scrny;
+	char* vram;
+};
+
 void HariMain(void)
 {
-	char *vram;
-	int xsize, ysize;
+	struct BOOTINFO* binfo = (struct BOOTINFO*)0x0ff0;
+	static char font_A[16] = {
+		0x00, 0x18, 0x18, 0x18, 0x18, 0x24, 0x24, 0x24,
+		0x24, 0x7e, 0x42, 0x42, 0x42, 0xe7, 0x00, 0x00
+	};
 
 	init_palette();
-	vram = (char *) 0xa0000;
-	xsize = 320;
-	ysize = 200;
-
-	// boxfill8(vram, 320, COL8_FF0000, 20, 20, 120, 120);
-	// boxfill8(vram, 320, COL8_00FF00, 70, 50, 170, 150);
-	// boxfill8(vram, 320, COL8_0000FF, 70, 50, 170, 150);
-	
-
-
-	boxfill8(vram, xsize, COL8_008484,  0,         0,          xsize -  1, ysize - 29);
-	boxfill8(vram, xsize, COL8_C6C6C6,  0,         ysize - 28, xsize -  1, ysize - 28);
-	boxfill8(vram, xsize, COL8_FFFFFF,  0,         ysize - 27, xsize -  1, ysize - 27);
-	boxfill8(vram, xsize, COL8_C6C6C6,  0,         ysize - 26, xsize -  1, ysize -  1);
-	boxfill8(vram, xsize, COL8_FFFFFF,  3,         ysize - 24, 59,         ysize - 24);
-	boxfill8(vram, xsize, COL8_FFFFFF,  2,         ysize - 24,  2,         ysize -  4);
-	boxfill8(vram, xsize, COL8_848484,  3,         ysize -  4, 59,         ysize -  4);
-	boxfill8(vram, xsize, COL8_848484, 59,         ysize - 23, 59,         ysize -  5);
-	boxfill8(vram, xsize, COL8_000000,  2,         ysize -  3, 59,         ysize -  3);
-	boxfill8(vram, xsize, COL8_000000, 60,         ysize - 24, 60,         ysize -  3);
-	boxfill8(vram, xsize, COL8_848484, xsize - 47, ysize - 24, xsize -  4, ysize - 24);
-	boxfill8(vram, xsize, COL8_848484, xsize - 47, ysize - 23, xsize - 47, ysize -  4);
-	boxfill8(vram, xsize, COL8_FFFFFF, xsize - 47, ysize -  3, xsize -  4, ysize -  3);
-	boxfill8(vram, xsize, COL8_FFFFFF, xsize -  3, ysize - 24, xsize -  3, ysize -  3);
+	init_screen(binfo->vram, binfo->scrnx, binfo->scrny);
+	putfont8(binfo->vram, binfo->scrnx, 10, 10, COL8_FFFFFF, font_A);
 
 	for (;;) {
 		io_hlt();
@@ -64,34 +53,34 @@ void HariMain(void)
 void init_palette(void)
 {
 	static unsigned char table_rgb[16 * 3] = {
-		0x00, 0x00, 0x00,	/*  0:崟 */
-		0xff, 0x00, 0x00,	/*  1:柧傞偄愒 */
-		0x00, 0xff, 0x00,	/*  2:柧傞偄椢 */
-		0xff, 0xff, 0x00,	/*  3:柧傞偄墿怓 */
-		0x00, 0x00, 0xff,	/*  4:柧傞偄惵 */
-		0xff, 0x00, 0xff,	/*  5:柧傞偄巼 */
-		0x00, 0xff, 0xff,	/*  6:柧傞偄悈怓 */
-		0xff, 0xff, 0xff,	/*  7:敀 */
-		0xc6, 0xc6, 0xc6,	/*  8:柧傞偄奃怓 */
-		0x84, 0x00, 0x00,	/*  9:埫偄愒 */
-		0x00, 0x84, 0x00,	/* 10:埫偄椢 */
-		0x84, 0x84, 0x00,	/* 11:埫偄墿怓 */
-		0x00, 0x00, 0x84,	/* 12:埫偄惵 */
-		0x84, 0x00, 0x84,	/* 13:埫偄巼 */
-		0x00, 0x84, 0x84,	/* 14:埫偄悈怓 */
-		0x84, 0x84, 0x84	/* 15:埫偄奃怓 */
+		0x00, 0x00, 0x00,	/*  0:黑 */
+		0xff, 0x00, 0x00,	/*  1:亮红 */
+		0x00, 0xff, 0x00,	/*  2:亮绿 */
+		0xff, 0xff, 0x00,	/*  3:亮黄 */
+		0x00, 0x00, 0xff,	/*  4:亮蓝 */
+		0xff, 0x00, 0xff,	/*  5:亮紫 */
+		0x00, 0xff, 0xff,	/*  6:浅亮蓝 */
+		0xff, 0xff, 0xff,	/*  7:白 */
+		0xc6, 0xc6, 0xc6,	/*  8:亮灰 */
+		0x84, 0x00, 0x00,	/*  9:暗红 */
+		0x00, 0x84, 0x00,	/* 10:暗绿 */
+		0x84, 0x84, 0x00,	/* 11:暗黄 */
+		0x00, 0x00, 0x84,	/* 12:暗青 */
+		0x84, 0x00, 0x84,	/* 13:暗紫 */
+		0x00, 0x84, 0x84,	/* 14:浅暗蓝 */
+		0x84, 0x84, 0x84	/* 15:暗灰 */
 	};
 	set_palette(0, 15, table_rgb);
 	return;
 
-	/* static char 柦椷偼丄僨乕僞偵偟偐巊偊側偄偗偳DB柦椷憡摉 */
+	/* static char 只能用于数据，相当于汇编的DB */
 }
 
-void set_palette(int start, int end, unsigned char *rgb)
+void set_palette(int start, int end, unsigned char* rgb)
 {
 	int i, eflags;
-	eflags = io_load_eflags();	/* 妱傝崬傒嫋壜僼儔僌偺抣傪婰榐偡傞 */
-	io_cli(); 					/* 嫋壜僼儔僌傪0偵偟偰妱傝崬傒嬛巭偵偡傞 */
+	eflags = io_load_eflags();	/* 记录中断许可的值 */
+	io_cli(); 					/* 将中断许可标志置为0，禁止中断 */
 	io_out8(0x03c8, start);
 	for (i = start; i <= end; i++) {
 		io_out8(0x03c9, rgb[0] / 4);
@@ -99,16 +88,57 @@ void set_palette(int start, int end, unsigned char *rgb)
 		io_out8(0x03c9, rgb[2] / 4);
 		rgb += 3;
 	}
-	io_store_eflags(eflags);	/* 妱傝崬傒嫋壜僼儔僌傪尦偵栠偡 */
+	io_store_eflags(eflags);	/* 复原中断许可标志 */
 	return;
 }
 
-void boxfill8(unsigned char *vram, int xsize, unsigned char c, int x0, int y0, int x1, int y1)
+void boxfill8(unsigned char* vram, int xsize, unsigned char c, int x0, int y0, int x1, int y1)
 {
 	int x, y;
 	for (y = y0; y <= y1; y++) {
 		for (x = x0; x <= x1; x++)
 			vram[y * xsize + x] = c;
+	}
+	return;
+}
+
+void init_screen(char* vram, int x, int y)
+{
+	boxfill8(vram, x, COL8_008484, 0, 0, x - 1, y - 29);
+	boxfill8(vram, x, COL8_C6C6C6, 0, y - 28, x - 1, y - 28);
+	boxfill8(vram, x, COL8_FFFFFF, 0, y - 27, x - 1, y - 27);
+	boxfill8(vram, x, COL8_C6C6C6, 0, y - 26, x - 1, y - 1);
+
+	boxfill8(vram, x, COL8_FFFFFF, 3, y - 24, 59, y - 24);
+	boxfill8(vram, x, COL8_FFFFFF, 2, y - 24, 2, y - 4);
+	boxfill8(vram, x, COL8_848484, 3, y - 4, 59, y - 4);
+	boxfill8(vram, x, COL8_848484, 59, y - 23, 59, y - 5);
+	boxfill8(vram, x, COL8_000000, 2, y - 3, 59, y - 3);
+	boxfill8(vram, x, COL8_000000, 60, y - 24, 60, y - 3);
+
+	boxfill8(vram, x, COL8_848484, x - 47, y - 24, x - 4, y - 24);
+	boxfill8(vram, x, COL8_848484, x - 47, y - 23, x - 47, y - 4);
+	boxfill8(vram, x, COL8_FFFFFF, x - 47, y - 3, x - 4, y - 3);
+	boxfill8(vram, x, COL8_FFFFFF, x - 3, y - 24, x - 3, y - 3);
+	return;
+}
+
+void putfont8(char* vram, int xsize, int x, int y, char c, char* font)		//显示字母A的函数
+{
+	int i;
+	char* p, d /* data */;
+	for (i = 0; i < 16; i++)			//这里是16*8的格子
+	{					
+		p = vram + (y + i) * xsize + x;
+		d = font[i];
+		if ((d & 0x80) != 0) { p[0] = c; }
+		if ((d & 0x40) != 0) { p[1] = c; }
+		if ((d & 0x20) != 0) { p[2] = c; }
+		if ((d & 0x10) != 0) { p[3] = c; }
+		if ((d & 0x08) != 0) { p[4] = c; }
+		if ((d & 0x04) != 0) { p[5] = c; }
+		if ((d & 0x02) != 0) { p[6] = c; }
+		if ((d & 0x01) != 0) { p[7] = c; }
 	}
 	return;
 }
